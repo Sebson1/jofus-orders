@@ -50,6 +50,30 @@
     <input id="key" type="password" placeholder="Your admin password">
     <div class="error" id="err"></div>
     <button class="btn" id="loginBtn">Open dashboard</button>
+    <div class="note" style="text-align:center"><a href="#" id="forgotLink">Forgot password?</a></div>
+  </div>
+
+  <div class="card" id="forgot" style="display:none">
+    <h2>Reset password</h2>
+    <div id="fStep1">
+      <div class="note" style="margin:0 0 6px">We will send a 6-digit code by SMS and WhatsApp to the owner alert number saved in Settings.</div>
+      <div class="error" id="ferr"></div>
+      <button class="btn" id="sendCodeBtn">📲 Send reset code</button>
+    </div>
+    <div id="fStep2" style="display:none">
+      <div class="success" id="fsent"></div>
+      <label for="rcode">Reset code</label>
+      <input id="rcode" inputmode="numeric" maxlength="6" placeholder="6-digit code">
+      <label for="rpw">New password</label>
+      <input id="rpw" type="password" placeholder="At least 6 characters">
+      <label for="rpw2">Repeat new password</label>
+      <input id="rpw2" type="password">
+      <div class="error" id="ferr2"></div>
+      <button class="btn" id="resetBtn">🔑 Set new password</button>
+      <div class="note" style="text-align:center"><a href="#" id="resendLink">Didn't get it? Send again</a></div>
+    </div>
+    <div class="note" style="margin-top:14px">Locked out completely? The <b>ADMIN_KEY</b> master key in your Render dashboard (Environment tab) always signs in.</div>
+    <div class="note" style="text-align:center"><a href="#" id="backToLogin">← Back to sign in</a></div>
   </div>
 
   <div id="dash" style="display:none">
@@ -131,6 +155,15 @@
         <div class="error" id="serr"></div>
         <div class="success" id="sok" style="display:none">Saved ✔</div>
         <button class="btn" id="saveSettings">💾 Save settings</button>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Dashboard password</h2>
+        <label>New password</label><input id="npw" type="password" placeholder="At least 6 characters" autocomplete="new-password">
+        <label>Repeat new password</label><input id="npw2" type="password" autocomplete="new-password">
+        <div class="error" id="pwerr"></div>
+        <div class="success" id="pwok" style="display:none">Password changed ✔</div>
+        <button class="btn" id="savePw">🔑 Change password</button>
+        <div class="note">Forgot it? Use "Forgot password?" on the sign-in screen to get a code on the owner alert number, or sign in with the master key from Render.</div>
       </div>
       <div class="card" style="margin-top:14px">
         <h2>Backup</h2>
@@ -313,12 +346,44 @@
     $('restoreFile').value = '';
   };
 
+  // ---- password change + reset
+  $('savePw').onclick = async () => {
+    $('pwerr').style.display = 'none'; $('pwok').style.display = 'none';
+    const a = $('npw').value, b = $('npw2').value;
+    if (a.length < 6) { $('pwerr').textContent = 'Use at least 6 characters.'; $('pwerr').style.display = 'block'; return; }
+    if (a !== b) { $('pwerr').textContent = 'The two passwords do not match.'; $('pwerr').style.display = 'block'; return; }
+    try { await api('/api/admin/password', { method: 'POST', body: JSON.stringify({ password: a }) }); key = a; sessionStorage.setItem(KEY, key); $('npw').value = $('npw2').value = ''; $('pwok').style.display = 'block'; setTimeout(() => $('pwok').style.display = 'none', 3000); }
+    catch (e) { $('pwerr').textContent = e.message; $('pwerr').style.display = 'block'; }
+  };
+  const showForgot = (on) => { $('login').style.display = on ? 'none' : 'block'; $('forgot').style.display = on ? 'block' : 'none'; $('fStep1').style.display = 'block'; $('fStep2').style.display = 'none'; };
+  $('forgotLink').onclick = (e) => { e.preventDefault(); showForgot(true); };
+  $('backToLogin').onclick = (e) => { e.preventDefault(); showForgot(false); };
+  async function sendCode() {
+    $('ferr').style.display = 'none';
+    const r = await fetch('/api/admin/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $('ferr').textContent = d.error || 'Could not send the code.'; $('ferr').style.display = 'block'; $('fStep1').style.display = 'block'; return; }
+    $('fsent').textContent = d.sent ? `Code sent to the owner ${d.hint}. It expires in 15 minutes.` : 'SMS/WhatsApp are not set up yet, so the code was printed in the server logs (Render → Logs). Add MNOTIFY_API_KEY to receive it by SMS.';
+    $('fStep1').style.display = 'none'; $('fStep2').style.display = 'block'; $('rcode').focus();
+  }
+  $('sendCodeBtn').onclick = sendCode;
+  $('resendLink').onclick = (e) => { e.preventDefault(); sendCode(); };
+  $('resetBtn').onclick = async () => {
+    $('ferr2').style.display = 'none';
+    const a = $('rpw').value, b = $('rpw2').value;
+    if (a !== b) { $('ferr2').textContent = 'The two passwords do not match.'; $('ferr2').style.display = 'block'; return; }
+    const r = await fetch('/api/admin/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: $('rcode').value, password: a }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $('ferr2').textContent = d.error || 'Reset failed.'; $('ferr2').style.display = 'block'; return; }
+    key = a; sessionStorage.setItem(KEY, key); $('rcode').value = $('rpw').value = $('rpw2').value = ''; showForgot(false); load();
+  };
+
   // ---- auth
   $('loginBtn').onclick = () => { key = $('key').value; sessionStorage.setItem(KEY, key); load(); };
   $('key').onkeydown = (e) => { if (e.key === 'Enter') $('loginBtn').click(); };
   $('refresh').onclick = load;
   $('filter').onchange = render;
-  $('logout').onclick = () => { sessionStorage.removeItem(KEY); key = ''; show(false); };
+  $('logout').onclick = () => { sessionStorage.removeItem(KEY); key = ''; show(false); showForgot(false); };
   if (key) load();
   setInterval(() => { if (key && $('dash').style.display !== 'none' && $('tab-orders').style.display !== 'none') load(); }, 30000);
 })();

@@ -151,13 +151,61 @@ app.post('/api/orders/:id/confirm', async (req, res) => {
 });
 
 // ---------- admin ----------
-const auth = (req, res, next) => {
-  const k = req.headers['x-admin-key'] || '';
-  if (k.length !== ADMIN_KEY.length || !crypto.timingSafeEqual(Buffer.from(k), Buffer.from(ADMIN_KEY))) return res.status(401).json({ error: 'Wrong password' });
+// Password model: the dashboard password lives in settings (hashed) and can be changed or reset from the
+// dashboard. The ADMIN_KEY env var is a master key that always works, so the owner can never be locked out.
+const safeEq = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
+const setPassword = (db, pw) => { const salt = crypto.randomBytes(8).toString('hex'); db.settings.adminSalt = salt; db.settings.adminHash = hashPw(pw, salt); };
+const checkPassword = (db, k) => {
+  if (!k) return false;
+  if (safeEq(k, ADMIN_KEY)) return true;
+  if (db.settings.adminHash) return safeEq(hashPw(k, db.settings.adminSalt), db.settings.adminHash);
+  return false;
+};
+const auth = async (req, res, next) => {
+  const db = await store.load();
+  if (!checkPassword(db, req.headers['x-admin-key'] || '')) return res.status(401).json({ error: 'Wrong password' });
   next();
 };
+const publicSettings = s => { const { adminHash, adminSalt, resetCode, ...rest } = s; return rest; };
 
-app.get('/api/admin/orders', auth, async (req, res) => { const db = await store.load(); res.json({ orders: db.orders, settings: db.settings, labels: LABELS }); });
+// Change password (logged in)
+app.post('/api/admin/password', auth, async (req, res) => {
+  const db = await store.load(); const pw = String(req.body.password || '');
+  if (pw.length < 6) return res.status(400).json({ error: 'Use at least 6 characters.' });
+  setPassword(db, pw); await store.save(); res.json({ ok: true });
+});
+
+// Forgot password: step 1 – send a 6-digit code to the owner's phone (SMS + WhatsApp). Valid 15 minutes.
+const resetAttempts = new Map();
+app.post('/api/admin/forgot', async (req, res) => {
+  const db = await store.load();
+  const last = db.settings.resetCode && db.settings.resetCode.sentAt ? Date.parse(db.settings.resetCode.sentAt) : 0;
+  if (Date.now() - last < 60 * 1000) return res.status(429).json({ error: 'A code was sent less than a minute ago. Please wait before requesting another.' });
+  const code = String(crypto.randomInt(100000, 999999));
+  db.settings.resetCode = { hash: crypto.createHash('sha256').update(code).digest('hex'), expires: new Date(Date.now() + 15 * 60 * 1000).toISOString(), sentAt: new Date().toISOString() };
+  await store.save();
+  const msg = `${db.settings.businessName} dashboard: your password reset code is ${code}. It expires in 15 minutes. Ignore this if you did not request it.`;
+  await notify.both(db.settings.ownerPhone, msg);
+  const smsOn = !!process.env.MNOTIFY_API_KEY, waOn = !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID);
+  if (!smsOn && !waOn) console.log('[password reset code]', code);
+  const tail = String(db.settings.ownerPhone || '').slice(-4);
+  res.json({ ok: true, sent: smsOn || waOn, hint: `number ending in ${tail}` });
+});
+// Forgot password: step 2 – verify the code and set a new password
+app.post('/api/admin/reset', async (req, res) => {
+  const db = await store.load(); const rc = db.settings.resetCode;
+  const ip = req.socket.remoteAddress; const n = (resetAttempts.get(ip) || 0) + 1; resetAttempts.set(ip, n);
+  if (n > 10) return res.status(429).json({ error: 'Too many attempts. Request a new code.' });
+  const code = String(req.body.code || '').trim(), pw = String(req.body.password || '');
+  if (!rc || Date.parse(rc.expires) < Date.now()) return res.status(400).json({ error: 'No active reset code. Request a new one.' });
+  if (!safeEq(crypto.createHash('sha256').update(code).digest('hex'), rc.hash)) return res.status(400).json({ error: 'Wrong code.' });
+  if (pw.length < 6) return res.status(400).json({ error: 'Use at least 6 characters.' });
+  setPassword(db, pw); delete db.settings.resetCode; resetAttempts.delete(ip); await store.save();
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/orders', auth, async (req, res) => { const db = await store.load(); res.json({ orders: db.orders, settings: publicSettings(db.settings), labels: LABELS }); });
 
 const NEXT = { pending_payment: ['placed', 'cancelled'], placed: ['accepted', 'cancelled'], accepted: ['processing', 'cancelled'], processing: ['ready', 'cancelled'], ready: ['delivered', 'completed'], delivered: ['completed'], completed: [], cancelled: ['placed'] };
 app.post('/api/admin/orders/:id/status', auth, async (req, res) => {
@@ -199,12 +247,12 @@ app.post('/api/admin/products/:id/toggle', auth, async (req, res) => {
 app.delete('/api/admin/products/:id', auth, async (req, res) => { const db = await store.load(); db.products = db.products.filter(p => p.id !== req.params.id); await store.save(); res.json({ ok: true }); });
 
 const SKEYS = ['businessName', 'tagline', 'ownerPhone', 'callPhone', 'whatsappPhone', 'deliveryFee', 'pickupInfo', 'footerNote'];
-app.get('/api/admin/settings', auth, async (req, res) => { const db = await store.load(); res.json(db.settings); });
+app.get('/api/admin/settings', auth, async (req, res) => { const db = await store.load(); res.json(publicSettings(db.settings)); });
 app.put('/api/admin/settings', auth, async (req, res) => {
   const db = await store.load();
   SKEYS.forEach(k => { if (k in req.body) db.settings[k] = k === 'deliveryFee' ? Number(req.body[k]) || 0 : String(req.body[k]).trim(); });
   db.settings.whatsappPhone = notify.normalize(db.settings.whatsappPhone);
-  await store.save(); res.json(db.settings);
+  await store.save(); res.json(publicSettings(db.settings));
 });
 app.get('/api/admin/backup', auth, async (req, res) => { const db = await store.load(); res.setHeader('Content-Disposition', 'attachment; filename=jofus-backup.json'); res.json(db); });
 app.post('/api/admin/restore', auth, async (req, res) => { const b = req.body; if (!b || !Array.isArray(b.products)) return res.status(400).json({ error: 'Not a valid backup file' }); await store.replace(b); res.json({ ok: true }); });

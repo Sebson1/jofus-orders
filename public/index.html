@@ -44,11 +44,8 @@
 </style>
 </head>
 <body>
-<header class="brand" style="padding-top:12px">
-  <div class="tag" id="tagline">EVERYTHING YOU NEED, DELIVERED</div>
-</header>
 
-<div class="wrap">
+<div class="wrap" style="padding-top:22px">
   <div class="grid">
     <section>
       <section class="hero" id="hero" style="margin-bottom:16px">
@@ -123,7 +120,6 @@
   const cfg = await fetch('/api/config').then(r => r.json());
   const P = cfg.products;
   document.title = cfg.businessName + ' – Order Online';
-  $('tagline').textContent = (cfg.tagline || 'Order online').toUpperCase();
   $('footer').textContent = cfg.footerNote || '';
   $('callBtn').href = 'tel:' + cfg.callPhone; $('callBtn').textContent = '📞 Call to order: ' + cfg.callPhone;
   if (cfg.pickupInfo) { $('pickupInfo').textContent = '🏪 ' + cfg.pickupInfo; $('pickupInfo').style.display = 'block'; }
