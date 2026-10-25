@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jofus Ventures – Order Online</title>
+<meta name="description" content="Jofus Ventures: consumables, clothing, footwear, kitchen appliances, electronics and accessories. Order online, pay with Paystack, pickup or delivery.">
+<meta property="og:title" content="Jofus Ventures – Order Online">
+<meta property="og:description" content="Everything you need, delivered. Order online now – pickup or delivery.">
+<meta property="og:image" content="/product.svg">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .product { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; padding: 12px; border: 1.5px solid var(--b-100); border-radius: 14px; background: var(--white); margin-bottom: 10px; }
+  .product .main.ph { width: 96px; height: 96px; border-radius: 10px; background: linear-gradient(135deg, var(--b-100), #fff3d9); display: grid; place-items: center; font-size: 44px; }
+  .product img.main { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; background: var(--b-50); cursor: zoom-in; }
+  .product .strip { display: flex; gap: 4px; margin-top: 4px; }
+  .product .strip img { width: 28px; height: 28px; object-fit: cover; border-radius: 6px; border: 1.5px solid transparent; cursor: pointer; }
+  .product .strip img.on { border-color: var(--b-900); }
+  .lightbox { position: fixed; inset: 0; background: rgba(15,48,58,.92); display: none; align-items: center; justify-content: center; z-index: 50; flex-direction: column; gap: 10px; }
+  .lightbox.open { display: flex; }
+  .lightbox img.big { max-width: 94vw; max-height: 78vh; border-radius: 12px; }
+  .lightbox .dots { display: flex; gap: 8px; }
+  .lightbox .dots img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+  .lightbox .dots img.on { border-color: #fff; }
+  .lightbox .close { position: absolute; top: 14px; right: 18px; color: #fff; font-size: 30px; cursor: pointer; }
+  .product .cat { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--amber-d); }
+  .product .name { font-weight: 800; color: var(--b-900); }
+  .product .desc { font-size: 13px; color: var(--muted); margin: 2px 0 6px; }
+  .product .bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .product .p { font-weight: 900; font-size: 18px; color: var(--b-900); }
+  .product .qty button { width: 36px; height: 36px; font-size: 18px; }
+  .product .qty input { width: 48px; height: 36px; padding: 0; font-size: 15px; }
+  .product.selected { border-color: var(--amber); background: #fff9ea; }
+  .hero.single img { max-height: 70vh; object-fit: contain; }
+  .summary { font-size: 14px; }
+  .summary div { display: flex; justify-content: space-between; padding: 3px 0; }
+  .sticky { position: sticky; top: 12px; }
+  @media (max-width: 760px) { .sticky { position: static; } }
+</style>
+</head>
+<body>
+<header class="brand">
+  <div class="logo"><span class="mark">J</span><span id="bizName">JOFUS <span class="v">VENTURES</span></span></div>
+  <div class="tag" id="tagline">EVERYTHING YOU NEED, DELIVERED</div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <section>
+      <section class="hero" id="hero" style="margin-bottom:16px"><img src="/product.svg" alt="Jofus Ventures products"></section>
+      <section class="card">
+        <h2 style="margin-top:0">Choose your products</h2>
+        <input class="search" id="q" placeholder="🔍 Search products…" aria-label="Search products">
+        <div class="cats" id="cats"></div>
+        <div id="products"></div>
+      </section>
+    </section>
+
+    <section class="card sticky">
+      <h2 style="margin-top:0">Your order</h2>
+      <div class="summary" id="summary"><div class="note">No items yet. Add products on the left.</div></div>
+
+      <form id="orderForm" autocomplete="on">
+        <label for="name">Your name</label>
+        <input id="name" name="name" placeholder="e.g. Ama Mensah" required>
+
+        <label for="phone">Phone (WhatsApp) number</label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="e.g. 0241234567" required>
+        <div class="note">Order updates will be sent to this number by SMS and WhatsApp.</div>
+
+        <label for="email">Email (optional, for your payment receipt)</label>
+        <input id="email" name="email" type="email" placeholder="you@example.com">
+
+        <label>How would you like to receive it?</label>
+        <div class="choice">
+          <label><input type="radio" name="fulfilment" value="pickup" checked><span>🏪 Pickup</span></label>
+          <label><input type="radio" name="fulfilment" value="delivery"><span>🛵 Delivery</span></label>
+        </div>
+        <div class="note" id="pickupInfo" style="display:none"></div>
+
+        <div id="addressWrap" style="display:none">
+          <label for="address">Delivery address / landmark</label>
+          <textarea id="address" name="address" placeholder="Area, street, house number or a landmark"></textarea>
+        </div>
+
+        <label for="note">Note to seller (optional)</label>
+        <textarea id="note" name="note" placeholder="Sizes, colours, any instructions…"></textarea>
+
+        <div class="total"><span>Total</span><span id="total">GHS 0.00</span></div>
+        <div class="error" id="err"></div>
+        <button class="btn" id="submitBtn" type="submit">💳 Pay with Paystack &amp; place order</button>
+        <div class="note" id="payNote" style="text-align:center">Secure payment by card, MoMo or bank transfer via Paystack.</div>
+      </form>
+
+      <a class="btn secondary" id="callBtn" href="#">📞 Call to order</a>
+      <a class="btn whatsapp" id="waBtn" href="#" target="_blank" rel="noopener">💬 Chat on WhatsApp</a>
+      <div class="note" style="text-align:center"><a href="/track">Already ordered? Track your order →</a></div>
+    </section>
+  </div>
+</div>
+
+<footer id="footer"></footer>
+<div class="lightbox" id="lb"><span class="close" id="lbClose">✕</span><img class="big" id="lbImg" src="" alt=""><div class="dots" id="lbDots"></div></div>
+
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cfg = await fetch('/api/config').then(r => r.json());
+  const P = cfg.products;
+  document.title = cfg.businessName + ' – Order Online';
+  $('bizName').innerHTML = esc(cfg.businessName).replace(/ (\S+)$/, ' <span class="v">$1</span>').toUpperCase();
+  $('tagline').textContent = (cfg.tagline || 'Order online').toUpperCase();
+  $('footer').textContent = cfg.footerNote || '';
+  $('callBtn').href = 'tel:' + cfg.callPhone; $('callBtn').textContent = '📞 Call to order: ' + cfg.callPhone;
+  if (cfg.pickupInfo) { $('pickupInfo').textContent = '🏪 ' + cfg.pickupInfo; $('pickupInfo').style.display = 'block'; }
+  if (!cfg.paystack) { $('submitBtn').textContent = '🛒 Place order'; $('payNote').textContent = 'Pay on pickup or delivery.'; }
+  if (P[0] && P[0].image && !P[0].image.endsWith('product.svg')) $('hero').querySelector('img').src = P[0].image;
+
+  const CATS = [...new Set(P.map(p => p.category || 'General'))];
+  let cat = 'All', q = '';
+  const qtys = {}; P.forEach(p => qtys[p.id] = 0);
+  const ICON = { 'Consumables': '🛒', 'Clothing': '👕', 'Footwear': '👟', 'Kitchen appliances': '🍳', 'Electronics & accessories': '📱' };
+  const hasPhoto = p => (p.images && p.images[0]) || (p.image && !p.image.endsWith('product.svg'));
+  const imgOf = p => (p.images && p.images[0]) || p.image || '/product.svg';
+  const tile = p => hasPhoto(p)
+    ? `<img class="main" src="${imgOf(p)}" alt="${esc(p.name)}" data-lb="${p.id}" data-i="0">`
+    : `<div class="main ph" aria-hidden="true">${ICON[p.category] || '🛍️'}</div>`;
+
+  function renderCats() {
+    $('cats').innerHTML = ['All', ...CATS].map(c => `<button type="button" class="${c === cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+  }
+  function renderProducts() {
+    const list = P.filter(p => (cat === 'All' || (p.category || 'General') === cat) && (!q || (p.name + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase().includes(q)));
+    $('products').innerHTML = list.length ? list.map(p => `
+    <div class="product ${qtys[p.id] > 0 ? 'selected' : ''}" id="prod-${p.id}">
+      <div>
+        ${tile(p)}
+        ${p.images && p.images.length > 1 ? '<div class="strip">' + p.images.map((u, i) => `<img src="${u}" class="${i === 0 ? 'on' : ''}" data-sw="${p.id}" data-i="${i}" alt="">`).join('') + '</div>' : ''}
+      </div>
+      <div>
+        <div class="cat">${esc(p.category || 'General')}</div>
+        <div class="name">${esc(p.name)}${p.size ? ' <small style="font-weight:600;color:var(--muted)">' + esc(p.size) + '</small>' : ''}</div>
+        <div class="desc">${esc(p.description || '')}</div>
+        <div class="bottom">
+          <span class="p">GHS ${Number(p.price).toFixed(2)}</span>
+          <span class="qty"><button type="button" data-id="${p.id}" data-d="-1">−</button><input type="number" min="0" max="500" value="${qtys[p.id]}" data-id="${p.id}"><button type="button" data-id="${p.id}" data-d="1">+</button></span>
+        </div>
+      </div>
+    </div>`).join('') : '<div class="note">No products match. Try another category or search.</div>';
+  }
+  const fulfil = () => document.querySelector('input[name=fulfilment]:checked').value;
+  function recalc() {
+    let sub = 0; const rows = [];
+    P.forEach(p => { if (qtys[p.id] > 0) { sub += qtys[p.id] * Number(p.price); rows.push(`<div><span>${qtys[p.id]} × ${esc(p.name)}</span><b>GHS ${(qtys[p.id] * p.price).toFixed(2)}</b></div>`); }
+      const el = $('prod-' + p.id); if (el) el.classList.toggle('selected', qtys[p.id] > 0); });
+    const del = fulfil() === 'delivery' ? cfg.deliveryFee : 0;
+    if (del && rows.length) rows.push(`<div><span>Delivery</span><b>GHS ${del.toFixed(2)}</b></div>`);
+    $('summary').innerHTML = rows.length ? rows.join('') : '<div class="note">No items yet. Add products on the left.</div>';
+    $('total').textContent = 'GHS ' + (sub + (rows.length ? del : 0)).toFixed(2);
+  }
+  renderCats(); renderProducts(); recalc();
+
+  $('cats').addEventListener('click', e => { const b = e.target.closest('button[data-cat]'); if (!b) return; cat = b.dataset.cat; renderCats(); renderProducts(); });
+  $('q').addEventListener('input', () => { q = $('q').value.trim().toLowerCase(); renderProducts(); });
+  $('products').addEventListener('click', e => {
+    const b = e.target.closest('button[data-id]'); if (!b) return;
+    const id = b.dataset.id; qtys[id] = Math.max(0, Math.min(500, qtys[id] + Number(b.dataset.d)));
+    document.querySelector(`input[data-id="${id}"]`).value = qtys[id]; recalc();
+  });
+  $('products').addEventListener('input', e => {
+    const i = e.target.closest('input[data-id]'); if (!i) return;
+    qtys[i.dataset.id] = Math.max(0, Math.min(500, parseInt(i.value, 10) || 0)); recalc();
+  });
+  // gallery
+  const imgsOf = (id) => { const p = P.find(x => x.id === id); return (p.images && p.images.length ? p.images : [imgOf(p)]); };
+  let lbId = null;
+  function showLb(id, i) {
+    lbId = id; const list = imgsOf(id);
+    $('lbImg').src = list[i];
+    $('lbDots').innerHTML = list.length > 1 ? list.map((u, j) => `<img src="${u}" class="${j === i ? 'on' : ''}" data-j="${j}" alt="">`).join('') : '';
+    $('lb').classList.add('open');
+  }
+  $('products').addEventListener('click', e => {
+    const sw = e.target.closest('img[data-sw]');
+    if (sw) { const card = $('prod-' + sw.dataset.sw); card.querySelector('img.main').src = sw.src; card.querySelector('img.main').dataset.i = sw.dataset.i; card.querySelectorAll('.strip img').forEach(x => x.classList.toggle('on', x === sw)); return; }
+    const mn = e.target.closest('img[data-lb]');
+    if (mn) showLb(mn.dataset.lb, +mn.dataset.i);
+  });
+  $('lbDots').addEventListener('click', e => { const d = e.target.closest('img[data-j]'); if (d) showLb(lbId, +d.dataset.j); });
+  $('lbClose').onclick = () => $('lb').classList.remove('open');
+  $('lb').addEventListener('click', e => { if (e.target === $('lb')) $('lb').classList.remove('open'); });
+
+  document.querySelectorAll('input[name=fulfilment]').forEach(r => r.onchange = () => { const d = fulfil() === 'delivery'; $('addressWrap').style.display = d ? 'block' : 'none'; $('pickupInfo').style.display = (!d && cfg.pickupInfo) ? 'block' : 'none'; recalc(); });
+
+  $('orderForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const err = $('err'); err.style.display = 'none';
+    const items = P.filter(p => qtys[p.id] > 0).map(p => ({ id: p.id, qty: qtys[p.id] }));
+    if (!items.length) { err.textContent = 'Please choose at least one product.'; err.style.display = 'block'; return; }
+    const btn = $('submitBtn'); const label = btn.textContent; btn.disabled = true; btn.textContent = 'Please wait…';
+    const body = { name: $('name').value, phone: $('phone').value, email: $('email').value, items, fulfilment: fulfil(), address: $('address').value, note: $('note').value };
+    try {
+      const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Something went wrong');
+      try { localStorage.setItem('jofus_phone', $('phone').value); } catch {}
+      location.href = data.paymentUrl || data.trackUrl || ('/track?id=' + data.orderId);
+    } catch (ex) { err.textContent = ex.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = label; }
+  };
+
+  const waText = 'Hello ' + cfg.businessName + ', I would like to place an order.';
+  $('waBtn').href = `https://wa.me/${cfg.whatsappPhone}?text=${encodeURIComponent(waText)}`;
+})();
+</script>
+</body>
+</html>
