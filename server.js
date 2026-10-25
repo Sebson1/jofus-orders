@@ -34,7 +34,7 @@ app.get('/api/config', async (req, res) => {
   const db = await store.load();
   const { businessName, tagline, deliveryFee, pickupInfo, footerNote, callPhone, whatsappPhone } = db.settings;
   const products = db.products.filter(p => p.active !== false).sort((a, b) => (a.sort || 0) - (b.sort || 0))
-    .map(p => ({ ...p, image: (p.images && p.images[0]) || p.image || '/product.svg' }));
+    .map(p => ({ ...p, image: (p.images && p.images[0]) || p.image || '' }));
   res.json({ businessName, tagline, deliveryFee: Number(deliveryFee) || 0, pickupInfo, footerNote, callPhone, whatsappPhone, paystack: !!PAYSTACK, products, storage: store.storageName() });
 });
 

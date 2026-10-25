@@ -7,9 +7,9 @@
 <meta name="description" content="Jofus Ventures: consumables, clothing, footwear, kitchen appliances, electronics and accessories. Order online, pay with Paystack, pickup or delivery.">
 <meta property="og:title" content="Jofus Ventures – Order Online">
 <meta property="og:description" content="Everything you need, delivered. Order online now – pickup or delivery.">
-<meta property="og:image" content="/product.svg">
+<meta property="og:image" content="/logo.png">
 <meta property="og:type" content="website">
-<link rel="icon" href="/favicon.svg">
+<link rel="icon" type="image/png" href="/favicon.png">
 <link rel="stylesheet" href="/style.css">
 <style>
   .product { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; padding: 12px; border: 1.5px solid var(--b-100); border-radius: 14px; background: var(--white); margin-bottom: 10px; }
@@ -32,8 +32,11 @@
   .product .p { font-weight: 900; font-size: 18px; color: var(--b-900); }
   .product .qty button { width: 36px; height: 36px; font-size: 18px; }
   .product .qty input { width: 48px; height: 36px; padding: 0; font-size: 15px; }
-  .product.selected { border-color: var(--amber); background: #fff9ea; }
-  .hero.single img { max-height: 70vh; object-fit: contain; }
+  .product.selected { border-color: var(--amber); background: #fff5ec; }
+  .hero-card { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: center; background: linear-gradient(135deg, #ffffff, #eef3fc 60%, #fff0e2); border: 1px solid var(--b-100); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
+  .hero-logo { width: 170px; height: 170px; object-fit: contain; box-shadow: none !important; }
+  .hero img.photo { width: 100%; border-radius: var(--radius); display: block; box-shadow: var(--shadow); }
+  @media (max-width: 520px) { .hero-card { grid-template-columns: 1fr; text-align: center; } .hero-logo { margin: 0 auto; width: 140px; height: 140px; } .features { text-align: left; } }
   .summary { font-size: 14px; }
   .summary div { display: flex; justify-content: space-between; padding: 3px 0; }
   .sticky { position: sticky; top: 12px; }
@@ -42,14 +45,24 @@
 </head>
 <body>
 <header class="brand">
-  <div class="logo"><span class="mark">J</span><span id="bizName">JOFUS <span class="v">VENTURES</span></span></div>
+  <a class="logo" href="/" aria-label="Jofus Ventures home"><img src="/logo.png" alt="Jofus Ventures"></a>
   <div class="tag" id="tagline">EVERYTHING YOU NEED, DELIVERED</div>
 </header>
 
 <div class="wrap">
   <div class="grid">
     <section>
-      <section class="hero" id="hero" style="margin-bottom:16px"><img src="/product.svg" alt="Jofus Ventures products"></section>
+      <section class="hero" id="hero" style="margin-bottom:16px">
+        <div class="hero-card" id="heroCard">
+          <img src="/logo.png" alt="Jofus Ventures" class="hero-logo">
+          <div>
+            <h2 style="margin:0 0 6px;font-size:26px;line-height:1.15">Everything you need, <span style="color:var(--amber-d)">delivered to your door.</span></h2>
+            <div class="features" style="margin:10px 0 0">
+              <div>🛒 Consumables &amp; groceries</div><div>👕 Clothing &amp; footwear</div><div>🍳 Kitchen appliances</div><div>📱 Electronics &amp; accessories</div>
+            </div>
+          </div>
+        </div>
+      </section>
       <section class="card">
         <h2 style="margin-top:0">Choose your products</h2>
         <input class="search" id="q" placeholder="🔍 Search products…" aria-label="Search products">
@@ -111,20 +124,20 @@
   const cfg = await fetch('/api/config').then(r => r.json());
   const P = cfg.products;
   document.title = cfg.businessName + ' – Order Online';
-  $('bizName').innerHTML = esc(cfg.businessName).replace(/ (\S+)$/, ' <span class="v">$1</span>').toUpperCase();
   $('tagline').textContent = (cfg.tagline || 'Order online').toUpperCase();
   $('footer').textContent = cfg.footerNote || '';
   $('callBtn').href = 'tel:' + cfg.callPhone; $('callBtn').textContent = '📞 Call to order: ' + cfg.callPhone;
   if (cfg.pickupInfo) { $('pickupInfo').textContent = '🏪 ' + cfg.pickupInfo; $('pickupInfo').style.display = 'block'; }
   if (!cfg.paystack) { $('submitBtn').textContent = '🛒 Place order'; $('payNote').textContent = 'Pay on pickup or delivery.'; }
-  if (P[0] && P[0].image && !P[0].image.endsWith('product.svg')) $('hero').querySelector('img').src = P[0].image;
+  // If the first product has a real photo, show it as the hero picture instead of the branded panel
+  if (P[0] && P[0].images && P[0].images[0]) { $('hero').innerHTML = `<img class="photo" src="${P[0].images[0]}" alt="${esc(P[0].name)}">`; }
 
   const CATS = [...new Set(P.map(p => p.category || 'General'))];
   let cat = 'All', q = '';
   const qtys = {}; P.forEach(p => qtys[p.id] = 0);
   const ICON = { 'Consumables': '🛒', 'Clothing': '👕', 'Footwear': '👟', 'Kitchen appliances': '🍳', 'Electronics & accessories': '📱' };
-  const hasPhoto = p => (p.images && p.images[0]) || (p.image && !p.image.endsWith('product.svg'));
-  const imgOf = p => (p.images && p.images[0]) || p.image || '/product.svg';
+  const hasPhoto = p => !!((p.images && p.images[0]) || p.image);
+  const imgOf = p => (p.images && p.images[0]) || p.image || '/logo.png';
   const tile = p => hasPhoto(p)
     ? `<img class="main" src="${imgOf(p)}" alt="${esc(p.name)}" data-lb="${p.id}" data-i="0">`
     : `<div class="main ph" aria-hidden="true">${ICON[p.category] || '🛍️'}</div>`;
