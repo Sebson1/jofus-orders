@@ -181,7 +181,7 @@ const auth = async (req, res, next) => {
   if (!checkPassword(db, req.headers['x-admin-key'] || '')) return res.status(401).json({ error: 'Wrong password' });
   next();
 };
-const publicSettings = s => { const { adminHash, adminSalt, resetCode, mnotifyApiKey, ...rest } = s; return { ...rest, mnotifyKeySet: !!(mnotifyApiKey || process.env.MNOTIFY_API_KEY), mnotifyKeySource: mnotifyApiKey ? 'settings' : (process.env.MNOTIFY_API_KEY ? 'render' : 'none') }; };
+const publicSettings = s => { const { adminHash, adminSalt, resetCode, mnotifyApiKey, ...rest } = s; return { ...rest, storage: store.storageName(), mnotifyKeySet: !!(mnotifyApiKey || process.env.MNOTIFY_API_KEY), mnotifyKeySource: mnotifyApiKey ? 'settings' : (process.env.MNOTIFY_API_KEY ? 'render' : 'none') }; };
 
 // Change password (logged in)
 app.post('/api/admin/password', auth, async (req, res) => {
@@ -220,7 +220,7 @@ app.post('/api/admin/reset', async (req, res) => {
 });
 
 app.get('/api/admin/orders', auth, async (req, res) => { const db = await store.load(); res.json({ orders: db.orders, settings: publicSettings(db.settings), labels: LABELS }); });
-app.get('/api/admin/ping', auth, async (req, res) => { const db = await store.load(); const open = db.orders.filter(o => !['completed', 'cancelled'].includes(o.status)).length; res.json({ latest: db.orders[0] ? db.orders[0].createdAt : null, count: db.orders.length, open, recent: db.orders.slice(0, 5).map(o => ({ id: o.id, name: o.name, amount: o.amount, createdAt: o.createdAt, status: o.status, paid: o.payment.status === 'paid' })) }); });
+app.get('/api/admin/ping', auth, async (req, res) => { const db = await store.load(); res.setHeader('X-Storage', store.storageName()); const open = db.orders.filter(o => !['completed', 'cancelled'].includes(o.status)).length; res.json({ latest: db.orders[0] ? db.orders[0].createdAt : null, count: db.orders.length, open, recent: db.orders.slice(0, 5).map(o => ({ id: o.id, name: o.name, amount: o.amount, createdAt: o.createdAt, status: o.status, paid: o.payment.status === 'paid' })) }); });
 
 const NEXT = { pending_payment: ['placed', 'cancelled'], placed: ['accepted', 'cancelled'], accepted: ['processing', 'cancelled'], processing: ['ready', 'cancelled'], ready: ['delivered', 'completed'], delivered: ['completed'], completed: [], cancelled: ['placed'] };
 app.post('/api/admin/orders/:id/status', auth, async (req, res) => {

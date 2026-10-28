@@ -1,8 +1,8 @@
 -- Run this once in Supabase: SQL editor -> New query -> paste -> Run
-create table if not exists public.store (
+-- (Uses its own table, so it can live in the same Supabase project as LMJ without touching LMJ's data.)
+create table if not exists public.jofus_store (
   key text primary key,
   value jsonb not null,
   updated_at timestamptz not null default now()
 );
--- Server-only access: the app uses the service key, which bypasses RLS.
-alter table public.store enable row level security;
+alter table public.jofus_store enable row level security;

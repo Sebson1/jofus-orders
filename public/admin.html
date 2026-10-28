@@ -83,6 +83,7 @@
   </div>
 
   <div id="dash" style="display:none">
+    <div id="storageBar" style="display:none;background:#fdecef;color:#b00020;border:1.5px solid #f5b5c0;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px;font-weight:600">⚠️ Temporary storage: settings, products and orders on this site are erased every time it restarts or updates. Connect Supabase (free) to keep them permanently — download a backup after every change until then.</div>
     <div id="notifBar">🔔 Turn on browser alerts so you hear and see new orders even when this tab is in the background. <button class="btn small" id="notifBtn" style="margin:0 0 0 8px">Enable alerts</button></div>
     <div class="tabs">
       <button class="on" data-tab="orders">📦 Orders</button>
@@ -256,7 +257,7 @@
 
   // ---- orders
   async function load() {
-    try { DATA = await api('/api/admin/orders'); SETTINGS = DATA.settings; show(true); render(); }
+    try { DATA = await api('/api/admin/orders'); SETTINGS = DATA.settings; show(true); render(); $('storageBar').style.display = SETTINGS.storage === 'file' ? 'block' : 'none'; }
     catch (e) { $('err').textContent = e.message; $('err').style.display = 'block'; }
   }
   function render() {
