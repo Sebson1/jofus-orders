@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const path = require('path');
 const store = require('./lib/store');
 const notify = require('./lib/notify');
+notify.settingsProvider(() => store.load().then(db => db.settings));
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -64,6 +65,7 @@ app.post('/api/orders', async (req, res) => {
   };
   db.orders.unshift(order);
   await store.save();
+  alertOwner(order, db, PAYSTACK ? 'Customer is now paying via Paystack.' : 'Pay on pickup/delivery.'); // instant, not awaited
 
   if (PAYSTACK) {
     try {
@@ -84,11 +86,15 @@ app.post('/api/orders', async (req, res) => {
   res.json({ ok: true, orderId: order.id, trackUrl: `/track?id=${order.id}` });
 });
 
+function alertOwner(order, db, payNote) {
+  const lines = order.items.map(i => `${i.qty} x ${i.name}`).join(', ');
+  const text = `NEW ORDER ${order.id}: ${order.name} (${order.phone}) - ${lines} - GHS ${order.amount} - ${order.fulfilment === 'delivery' ? 'Deliver to ' + order.address : 'Pickup'}${order.note ? ' - Note: ' + order.note : ''}. ${payNote} ${BASE_URL}/admin`;
+  return notify.both(db.settings.ownerPhone, text).catch(e => console.error('owner alert', e.message));
+}
 async function announce(order, db) {
   const s = db.settings;
-  await notify.both(order.phone, MESSAGES.placed(order, s));
-  const lines = order.items.map(i => `${i.qty} x ${i.name}`).join(', ');
-  await notify.both(s.ownerPhone, `NEW ORDER ${order.id}: ${order.name} (${order.phone}) – ${lines} – GHS ${order.amount} – ${order.fulfilment === 'delivery' ? 'Deliver to ' + order.address : 'Pickup'}${order.note ? ' – Note: ' + order.note : ''}. Payment: ${order.payment.status}.`);
+  notify.both(order.phone, MESSAGES.placed(order, s)).catch(() => {});
+  if (order.payment.status === 'paid') alertOwner(order, db, `PAID GHS ${order.amount} via ${order.payment.method}.`);
 }
 
 async function markPaid(order, db, reference, method) {
@@ -175,7 +181,7 @@ const auth = async (req, res, next) => {
   if (!checkPassword(db, req.headers['x-admin-key'] || '')) return res.status(401).json({ error: 'Wrong password' });
   next();
 };
-const publicSettings = s => { const { adminHash, adminSalt, resetCode, ...rest } = s; return rest; };
+const publicSettings = s => { const { adminHash, adminSalt, resetCode, mnotifyApiKey, ...rest } = s; return { ...rest, mnotifyKeySet: !!(mnotifyApiKey || process.env.MNOTIFY_API_KEY), mnotifyKeySource: mnotifyApiKey ? 'settings' : (process.env.MNOTIFY_API_KEY ? 'render' : 'none') }; };
 
 // Change password (logged in)
 app.post('/api/admin/password', auth, async (req, res) => {
@@ -214,6 +220,7 @@ app.post('/api/admin/reset', async (req, res) => {
 });
 
 app.get('/api/admin/orders', auth, async (req, res) => { const db = await store.load(); res.json({ orders: db.orders, settings: publicSettings(db.settings), labels: LABELS }); });
+app.get('/api/admin/ping', auth, async (req, res) => { const db = await store.load(); const open = db.orders.filter(o => !['completed', 'cancelled'].includes(o.status)).length; res.json({ latest: db.orders[0] ? db.orders[0].createdAt : null, count: db.orders.length, open, recent: db.orders.slice(0, 5).map(o => ({ id: o.id, name: o.name, amount: o.amount, createdAt: o.createdAt, status: o.status, paid: o.payment.status === 'paid' })) }); });
 
 const NEXT = { pending_payment: ['placed', 'cancelled'], placed: ['accepted', 'cancelled'], accepted: ['processing', 'cancelled'], processing: ['ready', 'cancelled'], ready: ['delivered', 'completed'], delivered: ['completed'], completed: [], cancelled: ['placed'] };
 app.post('/api/admin/orders/:id/status', auth, async (req, res) => {
@@ -280,13 +287,21 @@ app.post('/api/admin/products/:id/toggle', auth, async (req, res) => {
 });
 app.delete('/api/admin/products/:id', auth, async (req, res) => { const db = await store.load(); db.products = db.products.filter(p => p.id !== req.params.id); await store.save(); res.json({ ok: true }); });
 
-const SKEYS = ['businessName', 'tagline', 'ownerPhone', 'callPhone', 'whatsappPhone', 'deliveryFee', 'pickupInfo', 'footerNote'];
+const SKEYS = ['businessName', 'tagline', 'ownerPhone', 'callPhone', 'whatsappPhone', 'deliveryFee', 'pickupInfo', 'footerNote', 'mnotifySenderId'];
 app.get('/api/admin/settings', auth, async (req, res) => { const db = await store.load(); res.json(publicSettings(db.settings)); });
 app.put('/api/admin/settings', auth, async (req, res) => {
   const db = await store.load();
   SKEYS.forEach(k => { if (k in req.body) db.settings[k] = k === 'deliveryFee' ? Number(req.body[k]) || 0 : String(req.body[k]).trim(); });
   db.settings.whatsappPhone = notify.normalize(db.settings.whatsappPhone);
+  if (typeof req.body.mnotifyApiKey === 'string' && req.body.mnotifyApiKey.trim()) db.settings.mnotifyApiKey = req.body.mnotifyApiKey.trim();
+  if (req.body.clearMnotifyKey) delete db.settings.mnotifyApiKey;
   await store.save(); res.json(publicSettings(db.settings));
+});
+app.post('/api/admin/sms-test', auth, async (req, res) => {
+  const db = await store.load(); const to = String(req.body.to || db.settings.ownerPhone || '');
+  const r = await notify.sms(to, `${db.settings.businessName}: test message from your order dashboard. SMS alerts are working.`);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json({ ok: true, to });
 });
 app.get('/api/admin/backup', auth, async (req, res) => { const db = await store.load(); res.setHeader('Content-Disposition', 'attachment; filename=jofus-backup.json'); res.json(db); });
 app.post('/api/admin/restore', auth, async (req, res) => { const b = req.body; if (!b || !Array.isArray(b.products)) return res.status(400).json({ error: 'Not a valid backup file' }); await store.replace(b); res.json({ ok: true }); });
