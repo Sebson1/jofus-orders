@@ -12,7 +12,8 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="stylesheet" href="/style.css">
 <style>
-  .product { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; padding: 12px; border: 1.5px solid var(--b-100); border-radius: 14px; background: var(--white); margin-bottom: 10px; }
+  .plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .product { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; padding: 12px; border: 1.5px solid var(--b-100); border-radius: 14px; background: var(--white); }
   .product .main.ph { width: 96px; height: 96px; border-radius: 10px; background: linear-gradient(135deg, var(--b-100), #fff3d9); display: grid; place-items: center; font-size: 44px; }
   .product img.main { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; background: var(--b-50); cursor: zoom-in; }
   .product .strip { display: flex; gap: 4px; margin-top: 4px; }
@@ -32,85 +33,67 @@
   .product .p { font-weight: 900; font-size: 18px; color: var(--b-900); }
   .product .qty button { width: 36px; height: 36px; font-size: 18px; }
   .product .qty input { width: 48px; height: 36px; padding: 0; font-size: 15px; }
+  .product .add { width: auto; margin: 0; padding: 9px 16px; font-size: 14px; border-radius: 999px; background: var(--amber); color: #fff; box-shadow: none; }
   .product.selected { border-color: var(--amber); background: #fff5ec; }
   .hero-card { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: center; background: linear-gradient(135deg, #ffffff, #eef3fc 60%, #fff0e2); border: 1px solid var(--b-100); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
-  .hero-logo { width: 170px; height: 170px; object-fit: contain; box-shadow: none !important; }
-  .hero img.photo { width: 100%; border-radius: var(--radius); display: block; box-shadow: var(--shadow); }
+  .hero-logo { width: 170px; height: 170px; object-fit: contain; }
+  .hero-card .features { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 760px) { .hero-card .features { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { .hero-card { grid-template-columns: 1fr; text-align: center; } .hero-logo { margin: 0 auto; width: 140px; height: 140px; } .features { text-align: left; } }
-  .summary { font-size: 14px; }
-  .summary div { display: flex; justify-content: space-between; padding: 3px 0; }
-  .sticky { position: sticky; top: 12px; }
-  @media (max-width: 760px) { .sticky { position: static; } }
+  /* floating basket bubble */
+  .basket { position: fixed; top: 14px; right: 14px; z-index: 40; display: flex; align-items: center; gap: 10px; background: var(--b-900); color: #fff; border-radius: 999px; padding: 10px 16px 10px 12px; text-decoration: none; font-weight: 800; box-shadow: 0 10px 24px rgba(11,42,111,.35); border: 2px solid #fff; transition: transform .15s; }
+  .basket:hover { transform: scale(1.04); }
+  .basket .ico { position: relative; font-size: 24px; line-height: 1; }
+  .basket .cnt { position: absolute; top: -8px; right: -10px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--amber); color: #fff; font-size: 12px; font-weight: 900; display: grid; place-items: center; border: 2px solid var(--b-900); }
+  .basket .cnt[hidden] { display: none; }
+  .basket .lbl { font-size: 14px; line-height: 1.1; }
+  .basket .lbl small { display: block; font-weight: 600; color: var(--b-300); font-size: 12px; }
+  .basket.bump { animation: bump .35s; }
+  @keyframes bump { 30% { transform: scale(1.15); } }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--b-900); color: #fff; padding: 10px 16px; border-radius: 999px; font-weight: 700; font-size: 14px; box-shadow: 0 8px 20px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 45; white-space: nowrap; }
+  .toast.on { opacity: 1; }
+  .contact { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .contact .btn { width: auto; flex: 1; margin: 0; min-width: 200px; }
+  @media (max-width: 520px) { .basket .lbl { display: none; } .basket { padding: 10px 12px; } }
 </style>
 </head>
 <body>
 
+<a class="basket" id="basket" href="/checkout" aria-label="Open your basket">
+  <span class="ico">🧺<span class="cnt" id="bCount" hidden>0</span></span>
+  <span class="lbl"><span id="bText">Basket is empty</span><small id="bTotal">Tap items to add</small></span>
+</a>
+
 <div class="wrap" style="padding-top:22px">
-  <div class="grid">
-    <section>
-      <section class="hero" id="hero" style="margin-bottom:16px">
-        <div class="hero-card" id="heroCard">
-          <img src="/logo.png" alt="Jofus Ventures" class="hero-logo">
-          <div>
-            <h2 style="margin:0 0 6px;font-size:26px;line-height:1.15">Everything you need, <span style="color:var(--amber-d)">delivered to your door.</span></h2>
-            <div class="features" style="margin:10px 0 0">
-              <div>🛒 Consumables &amp; groceries</div><div>👕 Clothing &amp; footwear</div><div>🍳 Kitchen appliances</div><div>📱 Electronics &amp; accessories</div>
-            </div>
-          </div>
+  <section class="hero" id="hero" style="margin-bottom:16px">
+    <div class="hero-card" id="heroCard">
+      <img src="/logo.png" alt="Jofus Ventures" class="hero-logo">
+      <div>
+        <h2 style="margin:0 0 6px;font-size:26px;line-height:1.15">Everything you need, <span style="color:var(--amber-d)">delivered to your door.</span></h2>
+        <div class="features" style="margin:10px 0 0">
+          <div>🛒 Consumables &amp; groceries</div><div>👕 Clothing &amp; footwear</div><div>🍳 Kitchen appliances</div><div>📱 Electronics &amp; accessories</div>
         </div>
-      </section>
-      <section class="card">
-        <h2 style="margin-top:0">Choose your products</h2>
-        <input class="search" id="q" placeholder="🔍 Search products…" aria-label="Search products">
-        <div class="cats" id="cats"></div>
-        <div id="products"></div>
-      </section>
-    </section>
+        <div class="note" style="margin-top:10px">Add items to your basket, then tap the basket at the top right to check out. Pickup or delivery · pay online or on delivery.</div>
+      </div>
+    </div>
+  </section>
 
-    <section class="card sticky">
-      <h2 style="margin-top:0">Your order</h2>
-      <div class="summary" id="summary"><div class="note">No items yet. Add products on the left.</div></div>
+  <section class="card">
+    <h2 style="margin-top:0">Choose your products</h2>
+    <input class="search" id="q" placeholder="🔍 Search products…" aria-label="Search products">
+    <div class="cats" id="cats"></div>
+    <div class="plist" id="products"></div>
+  </section>
 
-      <form id="orderForm" autocomplete="on">
-        <label for="name">Your name</label>
-        <input id="name" name="name" placeholder="e.g. Ama Mensah" required>
-
-        <label for="phone">Phone (WhatsApp) number</label>
-        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="e.g. 0241234567" required>
-        <div class="note">Order updates will be sent to this number by SMS and WhatsApp.</div>
-
-        <label for="email">Email (optional, for your payment receipt)</label>
-        <input id="email" name="email" type="email" placeholder="you@example.com">
-
-        <label>How would you like to receive it?</label>
-        <div class="choice">
-          <label><input type="radio" name="fulfilment" value="pickup" checked><span>🏪 Pickup</span></label>
-          <label><input type="radio" name="fulfilment" value="delivery"><span>🛵 Delivery</span></label>
-        </div>
-        <div class="note" id="pickupInfo" style="display:none"></div>
-
-        <div id="addressWrap" style="display:none">
-          <label for="address">Delivery address / landmark</label>
-          <textarea id="address" name="address" placeholder="Area, street, house number or a landmark"></textarea>
-        </div>
-
-        <label for="note">Note to seller (optional)</label>
-        <textarea id="note" name="note" placeholder="Sizes, colours, any instructions…"></textarea>
-
-        <div class="total"><span>Total</span><span id="total">GHS 0.00</span></div>
-        <div class="error" id="err"></div>
-        <button class="btn" id="submitBtn" type="submit">💳 Pay with Paystack &amp; place order</button>
-        <div class="note" id="payNote" style="text-align:center">Secure payment by card, MoMo or bank transfer via Paystack.</div>
-      </form>
-
-      <a class="btn secondary" id="callBtn" href="#">📞 Call to order</a>
-      <a class="btn whatsapp" id="waBtn" href="#" target="_blank" rel="noopener">💬 Chat on WhatsApp</a>
-      <div class="note" style="text-align:center"><a href="/track">Already ordered? Track your order →</a></div>
-    </section>
+  <div class="contact">
+    <a class="btn secondary" id="callBtn" href="#">📞 Call to order</a>
+    <a class="btn whatsapp" id="waBtn" href="#" target="_blank" rel="noopener">💬 Chat on WhatsApp</a>
+    <a class="btn ghost" href="/track">📦 Track my order</a>
   </div>
 </div>
 
 <footer id="footer"></footer>
+<div class="toast" id="toast"></div>
 <div class="lightbox" id="lb"><span class="close" id="lbClose">✕</span><img class="big" id="lbImg" src="" alt=""><div class="dots" id="lbDots"></div></div>
 
 <script>
@@ -122,26 +105,39 @@
   document.title = cfg.businessName + ' – Order Online';
   $('footer').textContent = cfg.footerNote || '';
   $('callBtn').href = 'tel:' + cfg.callPhone; $('callBtn').textContent = '📞 Call to order: ' + cfg.callPhone;
-  if (cfg.pickupInfo) { $('pickupInfo').textContent = '🏪 ' + cfg.pickupInfo; $('pickupInfo').style.display = 'block'; }
-  if (!cfg.paystack) { $('submitBtn').textContent = '🛒 Place order'; $('payNote').textContent = 'Pay on pickup or delivery.'; }
+  $('waBtn').href = `https://wa.me/${cfg.whatsappPhone}?text=${encodeURIComponent('Hello ' + cfg.businessName + ', I would like to place an order.')}`;
 
+  // ---- basket (shared with /checkout via localStorage)
+  const BKEY = 'jofus_basket';
+  let basket = {}; try { basket = JSON.parse(localStorage.getItem(BKEY) || '{}'); } catch {}
+  Object.keys(basket).forEach(id => { if (!P.find(p => p.id === id) || !(basket[id] > 0)) delete basket[id]; });
+  const saveBasket = () => { try { localStorage.setItem(BKEY, JSON.stringify(basket)); } catch {} };
+  const qtyOf = id => basket[id] || 0;
+  function setQty(id, n) { n = Math.max(0, Math.min(500, n | 0)); if (n) basket[id] = n; else delete basket[id]; saveBasket(); renderBasket(); refreshCard(id); }
+  function renderBasket() {
+    let count = 0, sub = 0;
+    for (const id in basket) { const p = P.find(x => x.id === id); if (p) { count += basket[id]; sub += basket[id] * Number(p.price); } }
+    $('bCount').textContent = count; $('bCount').hidden = !count;
+    $('bText').textContent = count ? `${count} item${count === 1 ? '' : 's'} · Checkout →` : 'Basket is empty';
+    $('bTotal').textContent = count ? 'GHS ' + sub.toFixed(2) : 'Tap items to add';
+    $('basket').classList.remove('bump'); void $('basket').offsetWidth; if (count) $('basket').classList.add('bump');
+  }
+  let toastT; function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1600); }
+
+  // ---- catalogue
   const CATS = [...new Set(P.map(p => p.category || 'General'))];
   let cat = 'All', q = '';
-  const qtys = {}; P.forEach(p => qtys[p.id] = 0);
   const ICON = { 'Consumables': '🛒', 'Clothing': '👕', 'Footwear': '👟', 'Kitchen appliances': '🍳', 'Electronics & accessories': '📱' };
   const hasPhoto = p => !!((p.images && p.images[0]) || p.image);
   const imgOf = p => (p.images && p.images[0]) || p.image || '/logo.png';
   const tile = p => hasPhoto(p)
     ? `<img class="main" src="${imgOf(p)}" alt="${esc(p.name)}" data-lb="${p.id}" data-i="0">`
     : `<div class="main ph" aria-hidden="true">${ICON[p.category] || '🛍️'}</div>`;
-
-  function renderCats() {
-    $('cats').innerHTML = ['All', ...CATS].map(c => `<button type="button" class="${c === cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
-  }
-  function renderProducts() {
-    const list = P.filter(p => (cat === 'All' || (p.category || 'General') === cat) && (!q || (p.name + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase().includes(q)));
-    $('products').innerHTML = list.length ? list.map(p => `
-    <div class="product ${qtys[p.id] > 0 ? 'selected' : ''}" id="prod-${p.id}">
+  const controls = p => qtyOf(p.id)
+    ? `<span class="qty"><button type="button" data-id="${p.id}" data-d="-1">−</button><input type="number" min="0" max="500" value="${qtyOf(p.id)}" data-id="${p.id}"><button type="button" data-id="${p.id}" data-d="1">+</button></span>`
+    : `<button type="button" class="btn add" data-add="${p.id}">🧺 Add to basket</button>`;
+  const card = p => `
+    <div class="product ${qtyOf(p.id) > 0 ? 'selected' : ''}" id="prod-${p.id}">
       <div>
         ${tile(p)}
         ${p.images && p.images.length > 1 ? '<div class="strip">' + p.images.map((u, i) => `<img src="${u}" class="${i === 0 ? 'on' : ''}" data-sw="${p.id}" data-i="${i}" alt="">`).join('') + '</div>' : ''}
@@ -150,75 +146,37 @@
         <div class="cat">${esc(p.category || 'General')}</div>
         <div class="name">${esc(p.name)}${p.size ? ' <small style="font-weight:600;color:var(--muted)">' + esc(p.size) + '</small>' : ''}</div>
         <div class="desc">${esc(p.description || '')}</div>
-        <div class="bottom">
-          <span class="p">GHS ${Number(p.price).toFixed(2)}</span>
-          <span class="qty"><button type="button" data-id="${p.id}" data-d="-1">−</button><input type="number" min="0" max="500" value="${qtys[p.id]}" data-id="${p.id}"><button type="button" data-id="${p.id}" data-d="1">+</button></span>
-        </div>
+        <div class="bottom"><span class="p">GHS ${Number(p.price).toFixed(2)}</span><span class="ctl">${controls(p)}</span></div>
       </div>
-    </div>`).join('') : '<div class="note">No products match. Try another category or search.</div>';
+    </div>`;
+  function renderCats() { $('cats').innerHTML = ['All', ...CATS].map(c => `<button type="button" class="${c === cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join(''); }
+  function renderProducts() {
+    const list = P.filter(p => (cat === 'All' || (p.category || 'General') === cat) && (!q || (p.name + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase().includes(q)));
+    $('products').innerHTML = list.length ? list.map(card).join('') : '<div class="note">No products match. Try another category or search.</div>';
   }
-  const fulfil = () => document.querySelector('input[name=fulfilment]:checked').value;
-  function recalc() {
-    let sub = 0; const rows = [];
-    P.forEach(p => { if (qtys[p.id] > 0) { sub += qtys[p.id] * Number(p.price); rows.push(`<div><span>${qtys[p.id]} × ${esc(p.name)}</span><b>GHS ${(qtys[p.id] * p.price).toFixed(2)}</b></div>`); }
-      const el = $('prod-' + p.id); if (el) el.classList.toggle('selected', qtys[p.id] > 0); });
-    const del = fulfil() === 'delivery' ? cfg.deliveryFee : 0;
-    if (del && rows.length) rows.push(`<div><span>Delivery</span><b>GHS ${del.toFixed(2)}</b></div>`);
-    $('summary').innerHTML = rows.length ? rows.join('') : '<div class="note">No items yet. Add products on the left.</div>';
-    $('total').textContent = 'GHS ' + (sub + (rows.length ? del : 0)).toFixed(2);
-  }
-  renderCats(); renderProducts(); recalc();
+  function refreshCard(id) { const el = $('prod-' + id); if (!el) return; const p = P.find(x => x.id === id); el.classList.toggle('selected', qtyOf(id) > 0); el.querySelector('.ctl').innerHTML = controls(p); }
+  renderCats(); renderProducts(); renderBasket();
 
   $('cats').addEventListener('click', e => { const b = e.target.closest('button[data-cat]'); if (!b) return; cat = b.dataset.cat; renderCats(); renderProducts(); });
   $('q').addEventListener('input', () => { q = $('q').value.trim().toLowerCase(); renderProducts(); });
   $('products').addEventListener('click', e => {
-    const b = e.target.closest('button[data-id]'); if (!b) return;
-    const id = b.dataset.id; qtys[id] = Math.max(0, Math.min(500, qtys[id] + Number(b.dataset.d)));
-    document.querySelector(`input[data-id="${id}"]`).value = qtys[id]; recalc();
+    const a = e.target.closest('button[data-add]'); if (a) { setQty(a.dataset.add, 1); toast('Added to basket 🧺'); return; }
+    const b = e.target.closest('button[data-id]'); if (b) { setQty(b.dataset.id, qtyOf(b.dataset.id) + Number(b.dataset.d)); return; }
   });
-  $('products').addEventListener('input', e => {
-    const i = e.target.closest('input[data-id]'); if (!i) return;
-    qtys[i.dataset.id] = Math.max(0, Math.min(500, parseInt(i.value, 10) || 0)); recalc();
-  });
+  $('products').addEventListener('change', e => { const i = e.target.closest('input[data-id]'); if (i) setQty(i.dataset.id, parseInt(i.value, 10) || 0); });
+
   // gallery
   const imgsOf = (id) => { const p = P.find(x => x.id === id); return (p.images && p.images.length ? p.images : [imgOf(p)]); };
   let lbId = null;
-  function showLb(id, i) {
-    lbId = id; const list = imgsOf(id);
-    $('lbImg').src = list[i];
-    $('lbDots').innerHTML = list.length > 1 ? list.map((u, j) => `<img src="${u}" class="${j === i ? 'on' : ''}" data-j="${j}" alt="">`).join('') : '';
-    $('lb').classList.add('open');
-  }
+  function showLb(id, i) { lbId = id; const list = imgsOf(id); $('lbImg').src = list[i]; $('lbDots').innerHTML = list.length > 1 ? list.map((u, j) => `<img src="${u}" class="${j === i ? 'on' : ''}" data-j="${j}" alt="">`).join('') : ''; $('lb').classList.add('open'); }
   $('products').addEventListener('click', e => {
     const sw = e.target.closest('img[data-sw]');
-    if (sw) { const card = $('prod-' + sw.dataset.sw); card.querySelector('img.main').src = sw.src; card.querySelector('img.main').dataset.i = sw.dataset.i; card.querySelectorAll('.strip img').forEach(x => x.classList.toggle('on', x === sw)); return; }
-    const mn = e.target.closest('img[data-lb]');
-    if (mn) showLb(mn.dataset.lb, +mn.dataset.i);
+    if (sw) { const c = $('prod-' + sw.dataset.sw); c.querySelector('img.main').src = sw.src; c.querySelector('img.main').dataset.i = sw.dataset.i; c.querySelectorAll('.strip img').forEach(x => x.classList.toggle('on', x === sw)); return; }
+    const mn = e.target.closest('img[data-lb]'); if (mn) showLb(mn.dataset.lb, +mn.dataset.i);
   });
   $('lbDots').addEventListener('click', e => { const d = e.target.closest('img[data-j]'); if (d) showLb(lbId, +d.dataset.j); });
   $('lbClose').onclick = () => $('lb').classList.remove('open');
   $('lb').addEventListener('click', e => { if (e.target === $('lb')) $('lb').classList.remove('open'); });
-
-  document.querySelectorAll('input[name=fulfilment]').forEach(r => r.onchange = () => { const d = fulfil() === 'delivery'; $('addressWrap').style.display = d ? 'block' : 'none'; $('pickupInfo').style.display = (!d && cfg.pickupInfo) ? 'block' : 'none'; recalc(); });
-
-  $('orderForm').onsubmit = async (e) => {
-    e.preventDefault();
-    const err = $('err'); err.style.display = 'none';
-    const items = P.filter(p => qtys[p.id] > 0).map(p => ({ id: p.id, qty: qtys[p.id] }));
-    if (!items.length) { err.textContent = 'Please choose at least one product.'; err.style.display = 'block'; return; }
-    const btn = $('submitBtn'); const label = btn.textContent; btn.disabled = true; btn.textContent = 'Please wait…';
-    const body = { name: $('name').value, phone: $('phone').value, email: $('email').value, items, fulfilment: fulfil(), address: $('address').value, note: $('note').value };
-    try {
-      const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Something went wrong');
-      try { localStorage.setItem('jofus_phone', $('phone').value); } catch {}
-      location.href = data.paymentUrl || data.trackUrl || ('/track?id=' + data.orderId);
-    } catch (ex) { err.textContent = ex.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = label; }
-  };
-
-  const waText = 'Hello ' + cfg.businessName + ', I would like to place an order.';
-  $('waBtn').href = `https://wa.me/${cfg.whatsappPhone}?text=${encodeURIComponent(waText)}`;
 })();
 </script>
 </body>

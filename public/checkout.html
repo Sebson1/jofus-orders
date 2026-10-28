@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout – Jofus Ventures</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .line { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--b-100); }
+  .line img, .line .ph { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: linear-gradient(135deg, var(--b-100), #fff3d9); display: grid; place-items: center; font-size: 26px; }
+  .line .nm { font-weight: 800; color: var(--b-900); font-size: 14px; }
+  .line .sub { font-size: 13px; color: var(--muted); }
+  .line .qty button { width: 32px; height: 32px; font-size: 16px; }
+  .line .qty input { width: 44px; height: 32px; padding: 0; font-size: 14px; }
+  .line .rm { background: none; border: 0; color: #b00020; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 0 0; }
+  .line .amt { font-weight: 900; color: var(--b-900); text-align: right; }
+  .tot { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+  .steps-bar { display: flex; gap: 6px; margin: 0 0 14px; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .steps-bar span { flex: 1; text-align: center; padding: 8px; border-radius: 999px; background: var(--white); border: 1.5px solid var(--b-100); }
+  .steps-bar span.on { background: var(--b-900); color: #fff; border-color: var(--b-900); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .topbar img { height: 54px; }
+</style>
+</head>
+<body>
+<div class="wrap" style="max-width:980px;padding-top:16px">
+  <div class="topbar">
+    <a href="/" aria-label="Jofus Ventures home"><img src="/logo.png" alt="Jofus Ventures"></a>
+    <a class="btn ghost small" href="/" style="margin:0">← Continue shopping</a>
+  </div>
+  <div class="steps-bar"><span>1 · Basket</span><span class="on">2 · Your details</span><span>3 · Payment</span></div>
+
+  <div class="grid">
+    <section class="card">
+      <h2 style="margin-top:0">🧺 Your basket</h2>
+      <div id="lines"></div>
+      <div id="empty" class="note" style="display:none">Your basket is empty. <a href="/">Go back to the shop</a> to add items.</div>
+      <div style="margin-top:12px">
+        <div class="tot"><span>Items</span><b id="sub">GHS 0.00</b></div>
+        <div class="tot" id="delRow" style="display:none"><span>Delivery</span><b id="del">GHS 0.00</b></div>
+        <div class="total" style="margin-top:8px"><span>Total</span><span id="total">GHS 0.00</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">Your details</h2>
+      <form id="orderForm" autocomplete="on">
+        <label for="name">Your name</label>
+        <input id="name" name="name" placeholder="e.g. Ama Mensah" required>
+
+        <label for="phone">Phone (WhatsApp) number</label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="e.g. 0241234567" required>
+        <div class="note">Order updates will be sent to this number by SMS and WhatsApp.</div>
+
+        <label for="email">Email (optional, for your payment receipt)</label>
+        <input id="email" name="email" type="email" placeholder="you@example.com">
+
+        <label>How would you like to receive it?</label>
+        <div class="choice">
+          <label><input type="radio" name="fulfilment" value="pickup" checked><span>🏪 Pickup</span></label>
+          <label><input type="radio" name="fulfilment" value="delivery"><span>🛵 Delivery</span></label>
+        </div>
+        <div class="note" id="pickupInfo" style="display:none"></div>
+
+        <div id="addressWrap" style="display:none">
+          <label for="address">Delivery address / landmark</label>
+          <textarea id="address" name="address" placeholder="Area, street, house number or a landmark"></textarea>
+        </div>
+
+        <label for="note">Note to seller (optional)</label>
+        <textarea id="note" name="note" placeholder="Sizes, colours, any instructions…"></textarea>
+
+        <div class="error" id="err"></div>
+        <button class="btn" id="submitBtn" type="submit">💳 Pay with Paystack &amp; place order</button>
+        <div class="note" id="payNote" style="text-align:center">Secure payment by card, MoMo or bank transfer via Paystack.</div>
+      </form>
+      <div class="note" style="text-align:center;margin-top:12px">Need help? <a id="callLink" href="#">Call us</a> · <a id="waLink" href="#" target="_blank" rel="noopener">WhatsApp</a></div>
+    </section>
+  </div>
+</div>
+<footer id="footer"></footer>
+
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cfg = await fetch('/api/config').then(r => r.json());
+  const P = cfg.products;
+  document.title = 'Checkout – ' + cfg.businessName;
+  $('footer').textContent = cfg.footerNote || '';
+  $('callLink').href = 'tel:' + cfg.callPhone;
+  $('waLink').href = `https://wa.me/${cfg.whatsappPhone}?text=${encodeURIComponent('Hello ' + cfg.businessName + ', I need help with my order.')}`;
+  if (cfg.pickupInfo) { $('pickupInfo').textContent = '🏪 ' + cfg.pickupInfo; $('pickupInfo').style.display = 'block'; }
+  if (!cfg.paystack) { $('submitBtn').textContent = '🛒 Place order'; $('payNote').textContent = 'Pay on pickup or delivery.'; }
+  try { const ph = localStorage.getItem('jofus_phone'); if (ph) $('phone').value = ph; const nm = localStorage.getItem('jofus_name'); if (nm) $('name').value = nm; } catch {}
+
+  const BKEY = 'jofus_basket';
+  let basket = {}; try { basket = JSON.parse(localStorage.getItem(BKEY) || '{}'); } catch {}
+  Object.keys(basket).forEach(id => { if (!P.find(p => p.id === id) || !(basket[id] > 0)) delete basket[id]; });
+  const save = () => { try { localStorage.setItem(BKEY, JSON.stringify(basket)); } catch {} };
+  const ICON = { 'Consumables': '🛒', 'Clothing': '👕', 'Footwear': '👟', 'Kitchen appliances': '🍳', 'Electronics & accessories': '📱' };
+  const fulfil = () => document.querySelector('input[name=fulfilment]:checked').value;
+
+  function render() {
+    const ids = Object.keys(basket);
+    $('lines').innerHTML = ids.map(id => { const p = P.find(x => x.id === id); const img = (p.images && p.images[0]) || p.image;
+      return `<div class="line">
+        ${img ? `<img src="${img}" alt="">` : `<div class="ph">${ICON[p.category] || '🛍️'}</div>`}
+        <div><div class="nm">${esc(p.name)}${p.size ? ' <small style="font-weight:600;color:var(--muted)">' + esc(p.size) + '</small>' : ''}</div><div class="sub">GHS ${Number(p.price).toFixed(2)} each</div>
+          <span class="qty" style="margin-top:6px"><button type="button" data-id="${id}" data-d="-1">−</button><input type="number" min="0" max="500" value="${basket[id]}" data-id="${id}"><button type="button" data-id="${id}" data-d="1">+</button></span>
+          <button type="button" class="rm" data-rm="${id}">Remove</button></div>
+        <div class="amt">GHS ${(basket[id] * p.price).toFixed(2)}</div>
+      </div>`; }).join('');
+    $('empty').style.display = ids.length ? 'none' : 'block';
+    let sub = 0; ids.forEach(id => sub += basket[id] * Number(P.find(x => x.id === id).price));
+    const del = fulfil() === 'delivery' && ids.length ? cfg.deliveryFee : 0;
+    $('sub').textContent = 'GHS ' + sub.toFixed(2);
+    $('delRow').style.display = fulfil() === 'delivery' ? 'flex' : 'none'; $('del').textContent = 'GHS ' + del.toFixed(2);
+    $('total').textContent = 'GHS ' + (sub + del).toFixed(2);
+    $('submitBtn').disabled = !ids.length;
+  }
+  function setQty(id, n) { n = Math.max(0, Math.min(500, n | 0)); if (n) basket[id] = n; else delete basket[id]; save(); render(); }
+  $('lines').addEventListener('click', e => {
+    const r = e.target.closest('[data-rm]'); if (r) return setQty(r.dataset.rm, 0);
+    const b = e.target.closest('button[data-id]'); if (b) setQty(b.dataset.id, (basket[b.dataset.id] || 0) + Number(b.dataset.d));
+  });
+  $('lines').addEventListener('change', e => { const i = e.target.closest('input[data-id]'); if (i) setQty(i.dataset.id, parseInt(i.value, 10) || 0); });
+  document.querySelectorAll('input[name=fulfilment]').forEach(r => r.onchange = () => { const d = fulfil() === 'delivery'; $('addressWrap').style.display = d ? 'block' : 'none'; $('pickupInfo').style.display = (!d && cfg.pickupInfo) ? 'block' : 'none'; render(); });
+  render();
+
+  $('orderForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const err = $('err'); err.style.display = 'none';
+    const items = Object.keys(basket).map(id => ({ id, qty: basket[id] }));
+    if (!items.length) { err.textContent = 'Your basket is empty.'; err.style.display = 'block'; return; }
+    const btn = $('submitBtn'); const label = btn.textContent; btn.disabled = true; btn.textContent = 'Please wait…';
+    const body = { name: $('name').value, phone: $('phone').value, email: $('email').value, items, fulfilment: fulfil(), address: $('address').value, note: $('note').value };
+    try {
+      const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Something went wrong');
+      try { localStorage.setItem('jofus_phone', $('phone').value); localStorage.setItem('jofus_name', $('name').value); localStorage.removeItem(BKEY); } catch {}
+      location.href = data.paymentUrl || data.trackUrl || ('/track?id=' + data.orderId);
+    } catch (ex) { err.textContent = ex.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = label; }
+  };
+})();
+</script>
+</body>
+</html>
