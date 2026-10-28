@@ -79,6 +79,7 @@
   <div id="dash" style="display:none">
     <div class="tabs">
       <button class="on" data-tab="orders">📦 Orders</button>
+      <button data-tab="sales">📈 Sales</button>
       <button data-tab="products">🛍️ Products</button>
       <button data-tab="settings">⚙️ Settings</button>
     </div>
@@ -102,6 +103,41 @@
           </table>
         </div>
         <div class="note">Every status change automatically sends the customer an SMS and WhatsApp message. Use 💬 to open a WhatsApp chat with the customer. The list refreshes every 30 seconds.</div>
+      </div>
+    </div>
+
+    <!-- SALES -->
+    <div id="tab-sales" style="display:none">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <h2 style="margin:0">Sales</h2>
+          <div class="cats" style="margin:0">
+            <button type="button" data-range="today" class="on">Today</button>
+            <button type="button" data-range="yesterday">Yesterday</button>
+            <button type="button" data-range="week">Last 7 days</button>
+            <button type="button" data-range="month">This month</button>
+            <button type="button" data-range="all">All time</button>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px;align-items:end">
+          <div><label>From</label><input type="date" id="sFrom"></div>
+          <div><label>To</label><input type="date" id="sTo"></div>
+          <div style="flex:0"><label>&nbsp;</label><button class="btn small" id="sGo" style="margin:0;white-space:nowrap">Show</button></div>
+        </div>
+        <div class="note">Counts orders that are paid, delivered or completed. Cancelled orders are left out; unpaid orders still in progress show as "pending".</div>
+      </div>
+      <div class="stats" id="sStats" style="margin-top:14px"></div>
+      <div class="card" style="margin-top:14px">
+        <h2>By day</h2>
+        <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Orders</th><th>Items</th><th>Revenue</th></tr></thead><tbody id="sDays"></tbody></table></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Items sold</h2>
+        <div style="overflow-x:auto"><table><thead><tr><th>Item</th><th>Qty</th><th>Revenue</th></tr></thead><tbody id="sItems"></tbody></table></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0">Orders in this period</h2><button class="btn small ghost" id="sCsv">⬇️ Download CSV</button></div>
+        <div style="overflow-x:auto;margin-top:10px"><table><thead><tr><th>Order</th><th>Customer</th><th class="hide-m">Items</th><th>Amount</th><th>Payment</th><th>Status</th></tr></thead><tbody id="sOrders"></tbody></table></div>
       </div>
     </div>
 
@@ -199,7 +235,8 @@
 
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
-    ['orders', 'products', 'settings'].forEach(t => $('tab-' + t).style.display = b.dataset.tab === t ? 'block' : 'none');
+    ['orders', 'sales', 'products', 'settings'].forEach(t => $('tab-' + t).style.display = b.dataset.tab === t ? 'block' : 'none');
+    if (b.dataset.tab === 'sales') setRange('today');
     if (b.dataset.tab === 'products') loadProducts();
     if (b.dataset.tab === 'settings') loadSettings();
   });
@@ -245,6 +282,40 @@
       try { await api(`/api/admin/orders/${b.dataset.id}/mark-paid`, { method: 'POST' }); await load(); } catch (e) { alert(e.message); }
     });
   }
+
+  // ---- sales
+  let SALES = null;
+  const iso = d => d.toISOString().slice(0, 10);
+  function setRange(r) {
+    const t = new Date(); let from = iso(t), to = iso(t);
+    if (r === 'yesterday') { const y = new Date(t - 864e5); from = to = iso(y); }
+    if (r === 'week') from = iso(new Date(t - 6 * 864e5));
+    if (r === 'month') from = iso(t).slice(0, 8) + '01';
+    if (r === 'all') from = '2024-01-01';
+    document.querySelectorAll('[data-range]').forEach(b => b.classList.toggle('on', b.dataset.range === r));
+    $('sFrom').value = from; $('sTo').value = to; loadSales();
+  }
+  document.querySelectorAll('[data-range]').forEach(b => b.onclick = () => setRange(b.dataset.range));
+  $('sGo').onclick = () => { document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('on')); loadSales(); };
+  async function loadSales() {
+    try { SALES = await api(`/api/admin/sales?from=${$('sFrom').value}&to=${$('sTo').value}`); } catch (e) { alert(e.message); return; }
+    const T = SALES.totals; const gh = n => 'GHS ' + Number(n).toFixed(2);
+    $('sStats').innerHTML = `
+      <div><b>${gh(T.revenue)}</b><span>Sales ${SALES.from === SALES.to ? 'on ' + SALES.from : SALES.from + ' to ' + SALES.to}</span></div>
+      <div><b>${T.orders}</b><span>Orders</span></div>
+      <div><b>${T.items}</b><span>Items sold</span></div>
+      <div><b>${gh(T.paidOnline)}</b><span>Paid via Paystack</span></div>` + (T.pending || T.cancelled ? `<div><b>${T.pending}</b><span>Pending (not counted)</span></div><div><b>${T.cancelled}</b><span>Cancelled</span></div>` : '');
+    $('sDays').innerHTML = SALES.days.length ? SALES.days.map(d => `<tr><td>${d.date}</td><td>${d.orders}</td><td>${d.items}</td><td><b>${gh(d.revenue)}</b></td></tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">No sales in this period.</td></tr>';
+    $('sItems').innerHTML = SALES.items.length ? SALES.items.map(i => `<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td><b>${gh(i.revenue)}</b></td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted)">—</td></tr>';
+    $('sOrders').innerHTML = SALES.orders.length ? SALES.orders.map(o => `<tr><td><b>${o.id}</b><br><small style="color:var(--muted)">${new Date(o.createdAt).toLocaleString()}</small></td><td>${esc(o.name)}<br><small>${o.phone}</small></td><td class="hide-m">${o.items.map(i => `${i.qty} × ${esc(i.name)}`).join('<br>')}</td><td><b>${gh(o.amount)}</b></td><td><span class="pill ${o.payment === 'paid' ? 'paid' : 'unpaid'}">${o.payment}</span><br><small style="color:var(--muted)">${esc(o.method || '')}</small></td><td><span class="pill">${esc(o.status)}</span></td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No orders.</td></tr>';
+  }
+  $('sCsv').onclick = () => {
+    if (!SALES) return;
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const rows = [['Order', 'Date', 'Customer', 'Phone', 'Items', 'Amount (GHS)', 'Payment', 'Method', 'Fulfilment', 'Status'].map(q).join(',')];
+    SALES.orders.forEach(o => rows.push([o.id, new Date(o.createdAt).toLocaleString(), o.name, o.phone, o.items.map(i => `${i.qty} x ${i.name}`).join('; '), o.amount.toFixed(2), o.payment, o.method, o.fulfilment, o.status].map(q).join(',')));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' })); a.download = `jofus-sales-${SALES.from}_${SALES.to}.csv`; a.click();
+  };
 
   // ---- products
   async function loadProducts() {

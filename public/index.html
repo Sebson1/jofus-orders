@@ -124,8 +124,6 @@
   $('callBtn').href = 'tel:' + cfg.callPhone; $('callBtn').textContent = '📞 Call to order: ' + cfg.callPhone;
   if (cfg.pickupInfo) { $('pickupInfo').textContent = '🏪 ' + cfg.pickupInfo; $('pickupInfo').style.display = 'block'; }
   if (!cfg.paystack) { $('submitBtn').textContent = '🛒 Place order'; $('payNote').textContent = 'Pay on pickup or delivery.'; }
-  // If the first product has a real photo, show it as the hero picture instead of the branded panel
-  if (P[0] && P[0].images && P[0].images[0]) { $('hero').innerHTML = `<img class="photo" src="${P[0].images[0]}" alt="${esc(P[0].name)}">`; }
 
   const CATS = [...new Set(P.map(p => p.category || 'General'))];
   let cat = 'All', q = '';

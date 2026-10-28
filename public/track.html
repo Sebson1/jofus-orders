@@ -24,7 +24,14 @@
       <input id="phone" type="tel" placeholder="e.g. 0241234567" required>
       <div class="error" id="err"></div>
       <button class="btn" type="submit">🔎 Find my order</button>
+      <button class="btn secondary" type="button" id="allBtn">📋 See all my orders (by phone)</button>
     </form>
+
+    <div id="mine" style="display:none">
+      <h2>My orders</h2>
+      <div id="mineList"></div>
+      <button class="btn secondary" id="mineBack">← Back</button>
+    </div>
 
     <div id="order" style="display:none">
       <h2 id="title"></h2>
@@ -75,7 +82,7 @@
     $('title').textContent = `Order ${o.id}`;
     $('callLink').href = 'tel:' + o.ownerPhone; $('callLink').textContent = o.ownerPhone;
     const fulfil = o.fulfilment === 'delivery' ? `Delivery to ${esc(o.address)}` : 'Pickup';
-    const items = (o.items || []).map(i => `<b>${i.qty} × ${esc(i.name)}</b>`).join('<br>');
+    const items = (o.items || []).map(i => `<div style="display:flex;justify-content:space-between;gap:8px"><b>${i.qty} × ${esc(i.name)}</b><span>GHS ${(i.qty * i.price).toFixed(2)}</span></div>`).join('');
     $('summary').innerHTML = `${items}<br>Total: <b>GHS ${o.amount.toFixed(2)}</b>${o.deliveryFee ? ' (incl. GHS ' + o.deliveryFee + ' delivery)' : ''} · Payment: <span class="pill ${o.payment.status === 'paid' ? 'paid' : 'unpaid'}">${o.payment.status}</span><br>${fulfil}<br><span style="color:var(--muted)">Placed ${new Date(o.createdAt).toLocaleString()}</span>`;
 
     const idx = o.status === 'cancelled' ? -1 : o.status === 'pending_payment' ? -1 : FLOW.findIndex(f => f[0] === o.status);
@@ -105,6 +112,27 @@
   }
 
   $('lookup').onsubmit = (e) => { e.preventDefault(); load($('id').value, $('phone').value); };
+
+  // All orders for this phone
+  $('allBtn').onclick = async () => {
+    const phone = $('phone').value.trim(); const err = $('err'); err.style.display = 'none';
+    if (!phone) { err.textContent = 'Enter the phone number you ordered with.'; err.style.display = 'block'; return; }
+    const r = await fetch('/api/my-orders?phone=' + encodeURIComponent(phone)); const d = await r.json();
+    if (!r.ok) { err.textContent = d.error; err.style.display = 'block'; return; }
+    try { localStorage.setItem(PH_KEY, phone); } catch {}
+    $('mineList').innerHTML = d.orders.length ? d.orders.map(o => `
+      <div style="border:1px solid var(--b-100);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${o.id}</b><span class="pill ${o.status}">${esc(o.label)}</span></div>
+        <div class="note" style="margin:2px 0 8px">${new Date(o.createdAt).toLocaleString()} · ${o.fulfilment === 'delivery' ? 'Delivery' : 'Pickup'} · Payment: <span class="pill ${o.payment.status === 'paid' ? 'paid' : 'unpaid'}">${o.payment.status}</span></div>
+        ${o.items.map(i => `<div style="display:flex;justify-content:space-between;font-size:14px"><span>${i.qty} × ${esc(i.name)}</span><span>GHS ${(i.qty * i.price).toFixed(2)}</span></div>`).join('')}
+        ${o.deliveryFee ? `<div style="display:flex;justify-content:space-between;font-size:14px;color:var(--muted)"><span>Delivery</span><span>GHS ${o.deliveryFee.toFixed(2)}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px dashed var(--b-300);margin-top:6px;padding-top:6px"><span>Total</span><span>GHS ${o.amount.toFixed(2)}</span></div>
+        <button class="btn small ghost" data-open="${o.id}" style="margin-top:8px">Track this order →</button>
+      </div>`).join('') : '<div class="note">No orders found for this number yet.</div>';
+    $('lookup').style.display = 'none'; $('mine').style.display = 'block';
+    $('mineList').querySelectorAll('[data-open]').forEach(b => b.onclick = () => { $('mine').style.display = 'none'; load(b.dataset.open, phone); });
+  };
+  $('mineBack').onclick = () => { $('mine').style.display = 'none'; $('lookup').style.display = 'block'; };
   if (params.get('id') && savedPhone) load(params.get('id'), savedPhone);
 })();
 </script>

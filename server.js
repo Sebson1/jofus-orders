@@ -139,6 +139,14 @@ app.get('/api/orders/:id', async (req, res) => {
   res.json({ ...pub(o), ownerPhone: s.callPhone, ownerWhatsApp: s.whatsappPhone, businessName: s.businessName });
 });
 
+// All orders for a phone number (customer's order history)
+app.get('/api/my-orders', async (req, res) => {
+  const db = await store.load(); const phone = String(req.query.phone || '');
+  if (notify.normalize(phone).length < 9) return res.status(400).json({ error: 'Enter the phone number you ordered with.' });
+  const list = db.orders.filter(o => samePhone(o.phone, phone)).map(o => ({ id: o.id, createdAt: o.createdAt, status: o.status, label: LABELS[o.status] || o.status, amount: o.amount, deliveryFee: o.deliveryFee, fulfilment: o.fulfilment, address: o.address, items: o.items, payment: { status: o.payment.status } }));
+  res.json({ ok: true, orders: list });
+});
+
 app.post('/api/orders/:id/confirm', async (req, res) => {
   const db = await store.load();
   const o = db.orders.find(x => x.id === String(req.params.id).toUpperCase());
@@ -225,6 +233,32 @@ app.post('/api/admin/orders/:id/mark-paid', auth, async (req, res) => {
   if (!o) return res.status(404).json({ error: 'Order not found' });
   await markPaid(o, db, null, 'cash/momo');
   res.json({ ok: true, order: o });
+});
+
+// Sales report: ?from=YYYY-MM-DD&to=YYYY-MM-DD (Africa/Accra = UTC). Counts paid orders + completed/delivered unpaid (cash) orders; excludes cancelled.
+app.get('/api/admin/sales', auth, async (req, res) => {
+  const db = await store.load();
+  const day = d => new Date(d).toISOString().slice(0, 10);
+  const today = day(Date.now());
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : today;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : from;
+  const counts = o => o.status !== 'cancelled' && (o.payment.status === 'paid' || ['delivered', 'completed'].includes(o.status));
+  const inRange = db.orders.filter(o => { const d = day(o.createdAt); return d >= from && d <= to; });
+  const sales = inRange.filter(counts);
+  const byDay = {}; const byItem = {};
+  for (const o of sales) {
+    const d = day(o.createdAt); byDay[d] = byDay[d] || { date: d, orders: 0, revenue: 0, items: 0, delivery: 0 };
+    byDay[d].orders++; byDay[d].revenue += o.amount; byDay[d].delivery += o.deliveryFee || 0;
+    for (const i of o.items) { byDay[d].items += i.qty; byItem[i.name] = byItem[i.name] || { name: i.name, qty: 0, revenue: 0 }; byItem[i.name].qty += i.qty; byItem[i.name].revenue += i.qty * i.price; }
+  }
+  const r2 = n => Math.round(n * 100) / 100;
+  res.json({
+    from, to,
+    totals: { orders: sales.length, revenue: r2(sales.reduce((s, o) => s + o.amount, 0)), items: sales.reduce((s, o) => s + o.items.reduce((a, i) => a + i.qty, 0), 0), paidOnline: r2(sales.filter(o => o.payment.method === 'paystack' && o.payment.status === 'paid').reduce((s, o) => s + o.amount, 0)), pending: inRange.filter(o => !counts(o) && o.status !== 'cancelled').length, cancelled: inRange.filter(o => o.status === 'cancelled').length },
+    days: Object.values(byDay).sort((a, b) => b.date.localeCompare(a.date)).map(d => ({ ...d, revenue: r2(d.revenue), delivery: r2(d.delivery) })),
+    items: Object.values(byItem).sort((a, b) => b.revenue - a.revenue).map(i => ({ ...i, revenue: r2(i.revenue) })),
+    orders: sales.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(o => ({ id: o.id, createdAt: o.createdAt, name: o.name, phone: o.phone, amount: o.amount, items: o.items, fulfilment: o.fulfilment, payment: o.payment.status, method: o.payment.method, status: LABELS[o.status] || o.status }))
+  });
 });
 
 app.get('/api/admin/products', auth, async (req, res) => { const db = await store.load(); res.json(db.products.sort((a, b) => (a.sort || 0) - (b.sort || 0))); });
